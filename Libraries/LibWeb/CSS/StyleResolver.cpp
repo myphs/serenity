@@ -144,8 +144,126 @@ static Vector<String> split_on_whitespace(const StringView& string)
     return v;
 }
 
+static inline void set_property_border_width(StyleProperties& style, const StyleValue& value)
+{
+    ASSERT(value.is_length());
+    style.set_property(CSS::PropertyID::BorderTopWidth, value);
+    style.set_property(CSS::PropertyID::BorderRightWidth, value);
+    style.set_property(CSS::PropertyID::BorderBottomWidth, value);
+    style.set_property(CSS::PropertyID::BorderLeftWidth, value);
+}
+
+static inline void set_property_border_color(StyleProperties& style, const StyleValue& value)
+{
+    ASSERT(value.is_color());
+    style.set_property(CSS::PropertyID::BorderTopColor, value);
+    style.set_property(CSS::PropertyID::BorderRightColor, value);
+    style.set_property(CSS::PropertyID::BorderBottomColor, value);
+    style.set_property(CSS::PropertyID::BorderLeftColor, value);
+}
+
+static inline void set_property_border_style(StyleProperties& style, const StyleValue& value)
+{
+    ASSERT(value.is_string());
+    style.set_property(CSS::PropertyID::BorderTopStyle, value);
+    style.set_property(CSS::PropertyID::BorderRightStyle, value);
+    style.set_property(CSS::PropertyID::BorderBottomStyle, value);
+    style.set_property(CSS::PropertyID::BorderLeftStyle, value);
+}
+
 static void set_property_expanding_shorthands(StyleProperties& style, CSS::PropertyID property_id, const StyleValue& value)
 {
+    if (property_id == CSS::PropertyID::Border) {
+        if (value.is_length()) {
+            set_property_border_width(style, value);
+            return;
+        }
+        if (value.is_color()) {
+            set_property_border_color(style, value);
+            return;
+        }
+        if (value.is_string()) {
+            auto parts = split_on_whitespace(value.to_string());
+            if (parts.size() == 1) {
+                auto value0 = parse_css_value(parts[0]);
+                if (value0->is_string()) {
+                    if (value0->to_string() == "solid") {
+                        set_property_border_style(style, value0);
+                        set_property_border_color(style, ColorStyleValue::create(Gfx::Color::Black));
+                        set_property_border_width(style, LengthStyleValue::create(Length(3, Length::Type::Absolute)));
+                    }
+                    return;
+                }
+            }
+
+            if (parts.size() == 2 || parts.size() == 3) {
+                auto value0 = parse_css_value(parts[0]);
+                auto value1 = parse_css_value(parts[1]);
+
+                RefPtr<LengthStyleValue> width_value;
+                RefPtr<ColorStyleValue> color_value;
+                RefPtr<StringStyleValue> style_value;
+
+                if (value0->is_length())
+                    width_value = value0;
+                else if (value0->is_color())
+                    color_value = value0;
+                else if (value0->is_string())
+                    if (value0->to_string() == "solid")
+                        style_value = value0;
+
+                if (value1->is_length()) {
+                    if (width_value.is_null())
+                        width_value = value1;
+                    else
+                        return;
+                } else if (value1->is_color()) {
+                    if (color_value.is_null())
+                        color_value = value1;
+                    else
+                        return;
+                } else if (value1->is_string()) {
+                    if (style_value.is_null()) {
+                        if (value1->to_string() == "solid")
+                            style_value = value1;
+                    } else
+                        return;
+                }
+
+                if (parts.size() == 3) {
+                    auto value2 = parse_css_value(parts[2]);
+                    if (value2->is_length()) {
+                        if (width_value.is_null())
+                            width_value = value2;
+                        else
+                            return;
+                    } else if (value2->is_color()) {
+                        if (color_value.is_null())
+                            color_value = value2;
+                        else
+                            return;
+                    } else if (value2->is_string()) {
+                        if (style_value.is_null()) {
+                            if (value2->to_string() == "solid")
+                                color_value = value2;
+                        } else
+                            return;
+                    }
+                }
+
+                if (!width_value.is_null())
+                    set_property_border_width(style, width_value.release_nonnull());
+                if (!color_value.is_null())
+                    set_property_border_color(style, color_value.release_nonnull());
+                if (!style_value.is_null())
+                    set_property_border_style(style, style_value.release_nonnull());
+
+                return;
+            }
+        }
+        return;
+    }
+
     if (property_id == CSS::PropertyID::BorderStyle) {
         style.set_property(CSS::PropertyID::BorderTopStyle, value);
         style.set_property(CSS::PropertyID::BorderRightStyle, value);
